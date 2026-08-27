@@ -93,14 +93,16 @@ neu-defect-freq/
 │   ├── yolov8n-dct-p3.yaml     # A2: DCT attention @ P3 only
 │   └── yolov8n-se.yaml         # A3: SE (GAP) attention @ P3/P4/P5 — capacity-matched control
 ├── modules/
-│   ├── dct_attention.py        # DCTAttention / SEAttention (+ unit tests)
+│   ├── dct_attention.py        # DCTAttention / SEAttention (+ unit & regression tests)
 │   └── register.py             # registers modules into ultralytics (no source patching)
 ├── train.py                    # one experiment: train + test-split evaluation -> test_metrics.json
-├── run_all.py                  # the full ablation matrix, sequentially
+├── eval.py                     # re-evaluate any checkpoint on a chosen split
+├── run_all.py                  # the full ablation matrix, sequentially (resumable)
 ├── scripts/
 │   ├── visualize.py            # GT|baseline|ours triplets, gain cases, error analysis
 │   └── make_report.py          # aggregate tables + copy PR curves / confusion matrices
-└── results/                    # tables, figures, error analysis
+├── results/                    # tables, PR curves, confusion matrices, detections, error analysis
+└── RESUME.md                   # 中文简历条目 / 套磁一句话 / 面试8问答
 ```
 
 ## 5. Reproduce
