@@ -41,11 +41,15 @@ SPLIT_FRACTIONS = {"train": 0.8, "val": 0.1, "test": 0.1}
 
 
 def find_source(explicit: str | None) -> Path:
-    """Locate the raw dataset (explicit path, or kagglehub cache, downloading if needed)."""
-    if explicit:
-        p = Path(explicit)
-        assert p.is_dir(), f"--src folder not found: {p}"
-        return p
+    """Locate the raw dataset (explicit path > local D-drive copy > kagglehub)."""
+    local = Path(__file__).resolve().parent / "raw_neu_det"
+    for cand in ([Path(explicit)] if explicit else []) + [local]:
+        if (cand / "train_images").is_dir():
+            return cand
+    import os
+
+    # keep any future kagglehub download on the D drive as well
+    os.environ.setdefault("KAGGLEHUB_CACHE", str(Path(__file__).resolve().parents[1] / "data" / "kagglehub_cache"))
     import kagglehub
 
     return Path(kagglehub.dataset_download("sovitrath/neu-steel-surface-defect-detect-trainvalid-split"))

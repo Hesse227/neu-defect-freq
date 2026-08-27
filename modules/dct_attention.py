@@ -57,7 +57,15 @@ def zigzag_frequencies(n: int) -> list[tuple[int, int]]:
 
 
 class _ChannelGate(nn.Module):
-    """Shared FC gate: Linear(C -> C/r) - ReLU - Linear(C/r -> C) - Sigmoid."""
+    """Shared FC gate: Linear(C -> C/r) - ReLU - Linear(C/r -> C), residual-style.
+
+    The gate is applied as ``x * (1 + tanh(g(x)))`` with the last linear
+    zero-initialised (ReZero-style), so at the start of finetuning the module
+    is an exact identity: pretrained backbone features are untouched, and the
+    channel reweighting is learned gradually. A plain sigmoid gate starts at a
+    uniform 0.5 scaling, which measurably hurts when finetuning a small
+    (1.8k-image) dataset for a limited budget.
+    """
 
     def __init__(self, channels: int, reduction: int = 16):
         super().__init__()
@@ -66,15 +74,12 @@ class _ChannelGate(nn.Module):
             nn.Linear(channels, hidden),
             nn.ReLU(inplace=True),
             nn.Linear(hidden, channels),
-            nn.Sigmoid(),
         )
-        # Zero-init the last layer => gate starts as a uniform 0.5 scaling, so
-        # pretrained backbone features are not scrambled at the start of finetuning.
         nn.init.zeros_(self.fc[2].weight)
         nn.init.zeros_(self.fc[2].bias)
 
     def forward(self, y: torch.Tensor) -> torch.Tensor:  # (B, C) -> (B, C)
-        return self.fc(y)
+        return torch.tanh(self.fc(y))
 
 
 class DCTAttention(nn.Module):
@@ -103,12 +108,21 @@ class DCTAttention(nn.Module):
         self.groups = groups
         self.gate = _ChannelGate(channels, reduction)
         self.register_buffer("freq_idx", torch.tensor(zigzag_frequencies(groups), dtype=torch.long), persistent=False)
-        self._basis_cache: dict[tuple[int, int, torch.device], torch.Tensor] = {}
+        self._basis_cache: dict[tuple[int, int], torch.Tensor] = {}
+
+    def __getstate__(self):
+        # Never let the lazily-built basis cache travel inside checkpoints/deepcopies:
+        # nn.Module.to() moves parameters and buffers but not plain-dict tensors, so a
+        # device-pinned cached basis would resurface on the wrong device after a
+        # torch.load(map_location="cpu") + .to(cuda) round-trip. Rebuilding is cheap.
+        state = self.__dict__.copy()
+        state["_basis_cache"] = {}
+        return state
 
     def _basis(self, H: int, W: int, device: torch.device) -> torch.Tensor:
-        key = (H, W, device)
+        key = (H, W)  # device is validated per hit, not part of the key
         basis = self._basis_cache.get(key)
-        if basis is None:
+        if basis is None or basis.device != device:
             bases = [_dct1d(H, u).outer(_dct1d(W, v)).float() for u, v in self.freq_idx.tolist()]
             basis = torch.stack(bases).view(1, self.groups, 1, H, W).to(device)
             self._basis_cache[key] = basis
@@ -122,8 +136,10 @@ class DCTAttention(nn.Module):
         basis = self._basis(H, W, x.device)
         # multi-spectral squeeze: (B, G, C/G, H, W) * (1, G, 1, H, W) -> (B, G, C/G)
         y = x.view(B, self.groups, C // self.groups, H, W).mul(basis).sum(dim=(3, 4))
-        y = y.reshape(B, C)  # group-major split == original channel order
-        return x * self.gate(y)[:, :, None, None]
+        # basis is fp32, so the promotion would return fp32 even under AMP/half();
+        # cast back to the input dtype to keep the gate's Linear dtype-consistent.
+        y = y.reshape(B, C).to(dtype=x.dtype)  # group-major split == original channel order
+        return x * (1.0 + self.gate(y))[:, :, None, None]
 
 
 class SEAttention(nn.Module):
@@ -144,7 +160,7 @@ class SEAttention(nn.Module):
         if C != self.channels:
             raise ValueError(f"SEAttention built for {self.channels} channels but got {C}")
         y = x.mean(dim=(2, 3))  # GAP == DC-only squeeze
-        return x * self.gate(y)[:, :, None, None]
+        return x * (1.0 + self.gate(y))[:, :, None, None]
 
 
 if __name__ == "__main__":
@@ -155,6 +171,9 @@ if __name__ == "__main__":
         x = torch.randn(2, C, 80, 80, requires_grad=True)
         y = m(x)
         assert y.shape == x.shape
+        # near-identity initialisation: fresh module must pass features through unchanged
+        with torch.no_grad():
+            assert torch.allclose(m(x), x, atol=1e-6), "fresh gate must be an identity"
         y.sum().backward()
         assert x.grad is not None and torch.isfinite(x.grad).all()
         n_params = sum(p.numel() for p in m.parameters())

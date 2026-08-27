@@ -23,7 +23,8 @@ sys.path.insert(0, str(ROOT))
 from modules import register_yolo_modules  # noqa: E402
 
 RUNS = [  # (display name, run dir)
-    ("YOLOv8n (baseline)", "a0-baseline"),
+    ("YOLOv8n (baseline, seed 42)", "a0-baseline"),
+    ("YOLOv8n (baseline, seed 123)", "a0-baseline-seed123"),
     ("YOLOv8n + DCT @ P3/P4/P5 (ours)", "a1-dct-p345"),
     ("YOLOv8n + DCT @ P3 only", "a2-dct-p3"),
     ("YOLOv8n + SE @ P3/P4/P5 (control)", "a3-se-p345"),
@@ -35,6 +36,7 @@ def params_for(run: str) -> float:
     """Model parameter count in millions (builds the model from its yaml)."""
     cfg = {
         "a0-baseline": "configs/yolov8n-baseline.yaml",
+        "a0-baseline-seed123": "configs/yolov8n-baseline.yaml",
         "a1-dct-p345": "configs/yolov8n-dct.yaml",
         "a2-dct-p3": "configs/yolov8n-dct-p3.yaml",
         "a3-se-p345": "configs/yolov8n-se.yaml",
@@ -94,8 +96,9 @@ def main() -> None:
 
         # copy plots from the test-split validation output
         for src, dst in [
-            (ROOT / "runs" / f"{run}-test" / "BoxPRCurve.png", out / f"{run}_pr_curve.png"),
-            (ROOT / "runs" / f"{run}-test" / "ConfusionMatrix.png", out / f"{run}_confusion.png"),
+            (ROOT / "runs" / f"{run}-test" / "BoxPR_curve.png", out / f"{run}_pr_curve.png"),
+            (ROOT / "runs" / f"{run}-test" / "confusion_matrix.png", out / f"{run}_confusion.png"),
+            (ROOT / "runs" / f"{run}-test" / "confusion_matrix_normalized.png", out / f"{run}_confusion_norm.png"),
         ]:
             if src.exists():
                 shutil.copy2(src, dst)
