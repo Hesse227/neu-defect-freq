@@ -28,6 +28,7 @@ RUNS = [  # (display name, run dir)
     ("YOLOv8n + DCT @ P3/P4/P5 (ours)", "a1-dct-p345"),
     ("YOLOv8n + DCT @ P3 only", "a2-dct-p3"),
     ("YOLOv8n + SE @ P3/P4/P5 (control)", "a3-se-p345"),
+    ("YOLOv8n + DCT @ P3/P4/P5, freeze first 5 layers", "a4-dct-frozen5"),
 ]
 CLASSES = ["crazing", "inclusion", "patches", "pitted_surface", "rolled-in_scale", "scratches"]
 
@@ -40,6 +41,7 @@ def params_for(run: str) -> float:
         "a1-dct-p345": "configs/yolov8n-dct.yaml",
         "a2-dct-p3": "configs/yolov8n-dct-p3.yaml",
         "a3-se-p345": "configs/yolov8n-se.yaml",
+        "a4-dct-frozen5": "configs/yolov8n-dct.yaml",
     }[run]
     from ultralytics import YOLO
 

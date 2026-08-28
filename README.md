@@ -45,16 +45,18 @@ All runs: YOLOv8n, seed 42, 100 epochs, imgsz 640, batch 16, cos_lr, close_mosai
 
 | model | params (M) | mAP@50 | mAP@50:95 | GPU FPS | CPU inf (ms) |
 |---|---|---|---|---|---|
-| YOLOv8n (baseline, seed 42) | 3.012 | **0.771** | **0.436** | 342 | 96 |
-| YOLOv8n (baseline, seed 123) | 3.012 | 0.747 | 0.421 | 299 | 77 |
-| + DCT attention @ P3/P4/P5 (ours) | 3.023 | 0.753 | 0.418 | 240 | 95 |
-| + DCT attention @ P3 only | 3.013 | 0.724 | 0.410 | 320 | 87 |
-| + SE attention @ P3/P4/P5 (control) | 3.023 | 0.723 | 0.401 | 320 | 96 |
+| YOLOv8n (baseline, seed 42) | 3.012 | **0.771** | **0.436** | 357 | 99 |
+| YOLOv8n (baseline, seed 123) | 3.012 | 0.747 | 0.421 | 322 | 88 |
+| + DCT attention @ P3/P4/P5 (ours) | 3.023 | 0.753 | 0.418 | 231 | 93 |
+| + DCT attention @ P3 only | 3.013 | 0.724 | 0.410 | 318 | 97 |
+| + SE attention @ P3/P4/P5 (control) | 3.023 | 0.723 | 0.401 | 304 | 103 |
+| + DCT @ P3/P4/P5, first 5 layers frozen | 3.023 | 0.732 | 0.412 | 334 | 94 |
 
 **Read the table honestly.** The two baseline seeds alone differ by **2.4 mAP@50 points** (0.747 vs 0.771) — the run-to-run variance band of this 1.8k-image dataset. Against that band:
 
 - DCT @ P3/P4/P5 (0.753) is **inside** the band → no significant overall gain from inserting frequency-domain channel attention into a pretrained YOLOv8n on NEU-DET under this budget.
 - DCT @ P3-only and SE (0.723) sit ~2 points below the band's lower edge → plausibly slightly harmful; SE performs no better than DCT, so the blocker is not "wrong pooling" but the insertion itself.
+- Freezing the first 5 backbone layers (all three DCT modules trainable, shallow pretrained features protected) does not recover the gap either (0.732) — preserving the shallow-backbone distribution is not the binding constraint.
 
 ### Where the frequency story *does* hold: per-class effects
 
@@ -64,11 +66,12 @@ All runs: YOLOv8n, seed 42, 100 epochs, imgsz 640, batch 16, cos_lr, close_mosai
 | + DCT @ P3/P4/P5 | 0.397 | 0.823 | 0.890 | 0.827 | **0.658** | 0.919 |
 | + DCT @ P3 only | 0.282 | 0.814 | 0.891 | 0.791 | **0.671** | 0.893 |
 | + SE (control) | 0.296 | 0.837 | 0.903 | 0.755 | **0.647** | 0.902 |
+| + DCT @ P3/P4/P5, frozen first 5 | 0.294 | 0.808 | 0.913 | 0.782 | **0.670** | 0.922 |
 
 - **rolled-in_scale — large, low-frequency blotch defects — improves consistently and beyond the seed variance**: AP50 0.658/0.671 vs 0.638/0.594 for the two baseline seeds; box-level recall 0.639 → 0.708 (+7 points). Of the 20 GT boxes missed by baseline but caught by +DCT, **15 are rolled-in_scale** (see `results/error_analysis.md`, `results/visualisations/gain_cases.png`).
 - **crazing — fine, high-frequency crack networks — degrades** (0.439/0.386 → 0.397/0.282): channel-wise reweighting amplifies the low-frequency defect evidence it was rewarded for, at the cost of the finest-scale class.
 
-Interpretation: multi-spectral (DCT) pooling genuinely changes *which frequency content the detector attends to* — that effect is real, class-dependent, and reproducible across insertion variants (both DCT@P345 and DCT@P3 show the same pattern; SE shows a weaker version). But it is **not a free win**: re-weighting channels after the backbone helps the classes whose signal sits in the pooled bands and hurts the others, netting out to ≈0 overall on this dataset. This is precisely the trade-off a dynamic frequency-response design (as in DSF-Net) is meant to resolve — the static version studied here cannot adapt the response per input.
+Interpretation: multi-spectral (DCT) pooling genuinely changes *which frequency content the detector attends to* — that effect is real, class-dependent, and reproducible across **four** insertion/training variants (DCT@P345, DCT@P3, DCT@P345 with frozen shallow backbone all show the same pattern; SE shows a weaker version). But it is **not a free win**: re-weighting channels after the backbone helps the classes whose signal sits in the pooled bands and hurts the others, netting out to ≈0 overall on this dataset. This is precisely the trade-off a dynamic frequency-response design (as in DSF-Net) is meant to resolve — the static version studied here cannot adapt the response per input.
 
 ### Additional ablation: gate initialisation
 
@@ -131,10 +134,12 @@ Weights: `runs/<name>/weights/best.pt`. Every run also writes `runs/<name>-test/
 
 | id | config | question answered |
 |---|---|---|
-| A0 | YOLOv8n | baseline |
+| A0 | YOLOv8n (×2 seeds) | baseline + run-to-run variance band |
 | A1 | + DCT attention @ P3/P4/P5 | does multi-spectral channel attention help at all? |
 | A2 | + DCT attention @ P3 only | does the gain concentrate on the small-object stride? |
 | A3 | + SE attention @ P3/P4/P5 | is the gain from *frequency* pooling, or from *any* attention? (capacity-matched: identical FC gate) |
+| A4 | + DCT @ P3/P4/P5, first 5 layers frozen | is the ≈0 effect caused by disturbing pretrained shallow features? |
+| v1 vs v2 | sigmoid gate vs near-identity residual gate | is the ≈0 effect an artefact of gate initialisation? |
 
 ## 7. Notes & honest caveats
 
