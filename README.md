@@ -18,7 +18,7 @@ The frequency domain naturally decouples these two: background texture concentra
 
 **Key insight implemented:** SE channel attention squeezes each channel with global average pooling — mathematically the 0th (DC) DCT coefficient. Splitting channels into G groups and pooling each group with a different low-frequency 2-D DCT basis keeps multi-spectral (texture/edge) evidence that GAP discards, at ~0.4% extra parameters.
 
-**TL;DR of findings** — under a strict, capacity-matched, seed-variance-aware comparison on NEU-DET: inserting static frequency-domain channel attention into pretrained YOLOv8n gives **no significant overall mAP gain** (0.753 vs baseline band 0.747–0.771), but produces a **real, seed-robust, class-level frequency trade-off**: low-frequency blotch defects (rolled-in_scale) improve beyond the variance band (+7 recall points; 15/20 recovered misses), while fine high-frequency cracks (crazing) degrade. The full story is in [Results](#3-results).
+**TL;DR of findings** — under a strict, capacity-matched, **paired two-seed** comparison on NEU-DET: inserting static frequency-domain channel attention into pretrained YOLOv8n gives **no overall gain and a small consistent loss** (−1.8 mAP@50 at *both* seeds). The per-class frequency trade-off seen at seed 42 (low-frequency rolled-in_scale ↑, high-frequency crazing ↓) **survives only partially as a paired trend** (rolled-in_scale AP50 +2.0/+3.9 across seeds; crazing −4.2/−6.5), while the seed-42 recall gain (+7 pts) **does not reproduce** (−1.4 at seed 123). The full story is in [Results](#3-results).
 
 ## 2. Method
 
@@ -47,31 +47,40 @@ All runs: YOLOv8n, seed 42, 100 epochs, imgsz 640, batch 16, cos_lr, close_mosai
 |---|---|---|---|---|---|
 | YOLOv8n (baseline, seed 42) | 3.012 | **0.771** | **0.436** | 357 | 99 |
 | YOLOv8n (baseline, seed 123) | 3.012 | 0.747 | 0.421 | 322 | 88 |
-| + DCT attention @ P3/P4/P5 (ours) | 3.023 | 0.753 | 0.418 | 231 | 93 |
+| + DCT attention @ P3/P4/P5 (seed 42) | 3.023 | 0.753 | 0.418 | 231 | 93 |
+| + DCT attention @ P3/P4/P5 (seed 123) | 3.023 | 0.729 | 0.410 | — | — |
 | + DCT attention @ P3 only | 3.013 | 0.724 | 0.410 | 318 | 97 |
 | + SE attention @ P3/P4/P5 (control) | 3.023 | 0.723 | 0.401 | 304 | 103 |
 | + DCT @ P3/P4/P5, first 5 layers frozen | 3.023 | 0.732 | 0.412 | 334 | 94 |
 
-**Read the table honestly.** The two baseline seeds alone differ by **2.4 mAP@50 points** (0.747 vs 0.771) — the run-to-run variance band of this 1.8k-image dataset. Against that band:
+**Read the table with the paired-seed lens.** The two baseline seeds differ by 2.4 mAP@50 points on their own, so single-run differences under ~2.5 points are noise. Pairing each DCT run with the baseline of the *same* seed removes that noise, and the paired deltas are strikingly consistent:
 
-- DCT @ P3/P4/P5 (0.753) is **inside** the band → no significant overall gain from inserting frequency-domain channel attention into a pretrained YOLOv8n on NEU-DET under this budget.
-- DCT @ P3-only and SE (0.723) sit ~2 points below the band's lower edge → plausibly slightly harmful; SE performs no better than DCT, so the blocker is not "wrong pooling" but the insertion itself.
-- Freezing the first 5 backbone layers (all three DCT modules trainable, shallow pretrained features protected) does not recover the gap either (0.732) — preserving the shallow-backbone distribution is not the binding constraint.
+| paired delta (same seed) | mAP@50 | rolled-in_scale AP50 | crazing AP50 |
+|---|---|---|---|
+| seed 42: baseline → +DCT | −1.8 | **+2.0** | **−4.2** |
+| seed 123: baseline → +DCT | −1.8 | **+3.9** | **−6.5** |
 
-### Where the frequency story *does* hold: per-class effects
+- Overall: −1.8 mAP@50 at both seeds — inserting the attention into pretrained YOLOv8n costs ~2 points overall under this budget.
+- DCT @ P3-only, SE control and the frozen variant (single-seed) all land at 0.72–0.75, consistent with that picture; SE performs no better than DCT, so the blocker is not "wrong pooling" but the insertion itself, and freezing the first 5 layers does not recover it.
+
+### Per-class effects: a paired trend, not a robust gain
 
 | model | crazing | inclusion | patches | pitted_surface | **rolled-in_scale** | scratches |
 |---|---|---|---|---|---|---|
 | baseline seed 42 / seed 123 | 0.439 / 0.386 | 0.837 / 0.811 | 0.907 / 0.908 | 0.858 / 0.861 | **0.638 / 0.594** | 0.946 / 0.925 |
-| + DCT @ P3/P4/P5 | 0.397 | 0.823 | 0.890 | 0.827 | **0.658** | 0.919 |
-| + DCT @ P3 only | 0.282 | 0.814 | 0.891 | 0.791 | **0.671** | 0.893 |
-| + SE (control) | 0.296 | 0.837 | 0.903 | 0.755 | **0.647** | 0.902 |
-| + DCT @ P3/P4/P5, frozen first 5 | 0.294 | 0.808 | 0.913 | 0.782 | **0.670** | 0.922 |
+| + DCT @ P3/P4/P5 seed 42 / seed 123 | 0.397 / 0.321 | 0.823 / 0.843 | 0.890 / 0.915 | 0.827 / 0.762 | **0.658 / 0.634** | 0.919 / 0.898 |
+| + DCT @ P3 only (seed 42) | 0.282 | 0.814 | 0.891 | 0.791 | **0.671** | 0.893 |
+| + SE (control, seed 42) | 0.296 | 0.837 | 0.903 | 0.755 | **0.647** | 0.902 |
+| + DCT, frozen first 5 (seed 42) | 0.294 | 0.808 | 0.913 | 0.782 | **0.670** | 0.922 |
 
-- **rolled-in_scale — large, low-frequency blotch defects — improves consistently and beyond the seed variance**: AP50 0.658/0.671 vs 0.638/0.594 for the two baseline seeds; box-level recall 0.639 → 0.708 (+7 points). Of the 20 GT boxes missed by baseline but caught by +DCT, **15 are rolled-in_scale** (see `results/error_analysis.md`, `results/visualisations/gain_cases.png`).
-- **crazing — fine, high-frequency crack networks — degrades** (0.439/0.386 → 0.397/0.282): channel-wise reweighting amplifies the low-frequency defect evidence it was rewarded for, at the cost of the finest-scale class.
+What survives scrutiny, and what doesn't:
 
-Interpretation: multi-spectral (DCT) pooling genuinely changes *which frequency content the detector attends to* — that effect is real, class-dependent, and reproducible across **four** insertion/training variants (DCT@P345, DCT@P3, DCT@P345 with frozen shallow backbone all show the same pattern; SE shows a weaker version). But it is **not a free win**: re-weighting channels after the backbone helps the classes whose signal sits in the pooled bands and hurts the others, netting out to ≈0 overall on this dataset. This is precisely the trade-off a dynamic frequency-response design (as in DSF-Net) is meant to resolve — the static version studied here cannot adapt the response per input.
+- **rolled-in_scale AP50 — consistent in direction, modest in size.** Paired deltas +2.0 / +3.9 across the two seeds; every DCT variant lands at 0.63–0.67 vs the baseline pair 0.638/0.594. However the seed-to-seed spread of this class *within* the baseline itself is 4.4 points, so we report a **weak positive trend, not a robust gain**.
+- **rolled-in_scale recall — does not reproduce.** At seed 42, box-level recall improved 0.639 → 0.708 (+6.9) with 15/20 recovered misses; at seed 123 it slightly *dropped* (0.639 → 0.625, 7/16 recovered misses; see `results/error_analysis.md` and `results/error_analysis_s123.md`). Decision-level benefits at conf 0.25 are therefore **not established**.
+- **crazing — consistently hurt.** Paired deltas −4.2 / −6.5, and degraded in every attention variant. The most reproducible class-level signal in the study is a *negative* one.
+- patches/inclusion/scratches are broadly flat, pitted_surface drifts down in most variants.
+
+Interpretation: multi-spectral (DCT) pooling does bias the detector's frequency preferences — the direction of the class-level shifts is in line with the pooling bands — but on this dataset the trade-off nets out clearly negative overall (−1.8 mAP@50, both seeds) and the per-class gains are too small relative to seed noise to claim a win. Resolving this trade-off adaptively per input is exactly the motivation for a *dynamic* frequency-response design (DSF-Net's route); the static version studied here provides the evidence for why dynamics are needed, and honest bounds on what statics deliver.
 
 ### Additional ablation: gate initialisation
 
@@ -134,8 +143,8 @@ Weights: `runs/<name>/weights/best.pt`. Every run also writes `runs/<name>-test/
 
 | id | config | question answered |
 |---|---|---|
-| A0 | YOLOv8n (×2 seeds) | baseline + run-to-run variance band |
-| A1 | + DCT attention @ P3/P4/P5 | does multi-spectral channel attention help at all? |
+| A0 | YOLOv8n (×2 seeds) | baseline + run-to-run variance reference |
+| A1 | + DCT attention @ P3/P4/P5 (×2 seeds) | does multi-spectral channel attention help? (paired per-seed comparison) |
 | A2 | + DCT attention @ P3 only | does the gain concentrate on the small-object stride? |
 | A3 | + SE attention @ P3/P4/P5 | is the gain from *frequency* pooling, or from *any* attention? (capacity-matched: identical FC gate) |
 | A4 | + DCT @ P3/P4/P5, first 5 layers frozen | is the ≈0 effect caused by disturbing pretrained shallow features? |
@@ -143,7 +152,7 @@ Weights: `runs/<name>/weights/best.pt`. Every run also writes `runs/<name>-test/
 
 ## 7. Notes & honest caveats
 
-- **All numbers are real single-run results** (except the baseline, which was run twice with different seeds specifically to quantify variance). Nothing was tuned post-hoc to look better.
+- **All numbers are real single-run results** (except the baseline and the main DCT variant, which were each run twice with different seeds specifically to enable paired comparisons). Nothing was tuned post-hoc to look better.
 - The DCT module is **not** DSF-Net — no dynamic frequency-response function, no dual spatial mixer. It is the static, 60-line, reproducible core of the same idea (frequency-decoupled feature reweighting). The negative overall result with a real per-class frequency trade-off is exactly the evidence that motivates the *dynamic* variant.
 - On a 1.8k-image dataset, single-seed differences under ~2.5 mAP@50 points are within run-to-run noise (measured: baseline 0.747 vs 0.771 across seeds 42/123). Any future comparison here should report ≥2 seeds.
 - `ultralytics==8.4.130` pinned; the integration needs no source patching (runtime namespace registration, see `modules/register.py`). Two integration bugs were found and fixed along the way (AMP dtype promotion inside the DCT squeeze; a device-pinned lazy cache that broke `torch.load(map_location='cpu')` + `.to(cuda)` round-trips) — regression tests for both are embedded in `modules/dct_attention.py`.

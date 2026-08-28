@@ -102,6 +102,7 @@ def main() -> None:
     ap.add_argument("--dct", default=ROOT / "runs" / "a1-dct-p345" / "weights" / "best.pt")
     ap.add_argument("--conf", type=float, default=0.25)
     ap.add_argument("--device", default="0")
+    ap.add_argument("--tag", default="", help="suffix for output filenames (e.g. seed123), avoids overwriting")
     args = ap.parse_args()
 
     register_yolo_modules()
@@ -171,8 +172,8 @@ def main() -> None:
         w = max(r.shape[1] for r in rows)
         rows = [cv2.copyMakeBorder(r, 4, 4, 0, w - r.shape[1], cv2.BORDER_CONSTANT, value=(255, 255, 255)) for r in rows]
         grid = np.concatenate(rows, axis=0)
-        cv2.imwrite(str(out_dir / "gain_cases.png"), grid)
-        print(f"wrote gain_cases.png ({len(sel)} cases)")
+        cv2.imwrite(str(out_dir / f"gain_cases{args.tag}.png"), grid)
+        print(f"wrote gain_cases{args.tag}.png ({len(sel)} cases)")
     else:
         print("no baseline-missed / dct-caught cases found at this conf threshold")
 
@@ -191,8 +192,8 @@ def main() -> None:
     cnt = Counter(c for _, c in gain_cases)
     for c, n in cnt.most_common():
         md.append(f"- {CLASSES[c]}: {n}")
-    (ROOT / "results" / "error_analysis.md").write_text("\n".join(md) + "\n")
-    print("wrote results/error_analysis.md")
+    (ROOT / "results" / f"error_analysis{args.tag}.md").write_text("\n".join(md) + "\n")
+    print(f"wrote results/error_analysis{args.tag}.md")
 
 
 if __name__ == "__main__":
