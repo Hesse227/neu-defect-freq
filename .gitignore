@@ -8,3 +8,4 @@ __pycache__/
 nohup.out
 data/raw_neu_det/
 data/kagglehub_cache/
+RESUME.md

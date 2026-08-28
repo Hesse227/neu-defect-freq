@@ -52,6 +52,7 @@ def main() -> None:
     ap.add_argument("--batch", type=int, default=16)
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--patience", type=int, default=30)
+    ap.add_argument("--freeze", type=int, default=0, help="freeze the first N model layers (0 = none)")
     ap.add_argument("--device", default="0")
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--close-mosaic", type=int, default=15)
@@ -83,6 +84,7 @@ def main() -> None:
         cos_lr=True,
         plots=True,
         val=True,
+        freeze=args.freeze or None,
         close_mosaic=args.close_mosaic,
         verbose=True,
     )
