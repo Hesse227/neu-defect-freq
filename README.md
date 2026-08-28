@@ -162,4 +162,4 @@ Weights: `runs/<name>/weights/best.pt`. Every run also writes `runs/<name>-test/
 - Song, K., & Yan, Y. (2013). A noise robust method based on completed ensemble local binary patterns for hot-rolled steel strip surface defects. *Applied Surface Science*, 285. — NEU-DET dataset.
 - Qin, Z., Zhang, P., Wu, F., & Li, X. (2021). FcaNet: Frequency channel attention networks. *ICCV 2021*. — multi-spectral DCT channel attention.
 - Hu, J., Shen, L., & Sun, G. (2018). Squeeze-and-excitation networks. *CVPR 2018*. — SE control.
-- DSF-Net (Hou et al., 2026, RCIM) — frequency-aware dynamic fusion for thermal-control coating defect inspection; the research direction this project aligns with.
+- Hou, K., Li, R., Liu, X., et al. (2026). DSF-Net: Dual-Space frequency dynamic network for spacecraft thermal control coating defect detection. *Robotics and Computer-Integrated Manufacturing*, 98, 103117. — dynamic frequency-response design for thermal-control coating defects; the research direction this project aligns with (our static-attention ablation provides a negative-control footnote to why the dynamic response matters).
