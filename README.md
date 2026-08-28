@@ -86,6 +86,25 @@ Interpretation: multi-spectral (DCT) pooling does bias the detector's frequency 
 
 The gate was first implemented sigmoid-style (zero-init ⇒ starts as uniform ×0.5 feature scaling) and then as a near-identity residual gate `x·(1+tanh(g))` (zero-init ⇒ exact identity). Results are statistically indistinguishable (DCT@P3/P4/P5: 0.752 sigmoid vs 0.753 identity), so the ≈0 net effect is **not** an artefact of gate initialisation. Both runs kept: `runs/_v1_*` (sigmoid), `runs/a*` (identity).
 
+### Spectral analysis: the physical basis (mirrors DSF-Net's methodology)
+
+DSF-Net's methodology starts with a frequency-domain analysis of the defect types *before* designing the network. We applied the same first step to NEU-DET (`scripts/spectral_analysis.py`: GT-box crops → 2-D FFT → azimuthal-averaged radial PSD, 250 boxes/class): the six classes split into two clear spectral tiers —
+
+| class | low/high freq energy ratio | tier |
+|---|---|---|
+| crazing | **29.8** | high-frequency |
+| rolled-in_scale | **49.8** | high-frequency |
+| pitted_surface | **58.1** | high-frequency |
+| inclusion | 353.9 | low-frequency |
+| patches | 357.3 | low-frequency |
+| scratches | 373.9 | low-frequency |
+
+![spectral analysis](results/spectral_analysis.png)
+
+Connecting this to the ablations closes the evidence chain: the class hurt most by the static low-frequency DCT attention is **crazing — the spectrally highest-frequency class** (paired AP deltas −4.2/−6.5; pitted_surface, the other strongly high-frequency class, also trends down). A static bank of the 8 lowest-frequency DCT bases carries little discriminative information for the finest texture classes, and channel reweighting on that basis predictably hurts them. Conversely, rolled-in_scale's weak positive trend (+2.0/+3.9) is *not* explainable by its spectral position (it is itself a high-frequency class) — we leave this honestly open.
+
+This is the static-design lesson that motivates dynamic frequency responses (DSF-Net): **the spectral profile of each defect class should drive the frequency response, and a fixed response cannot serve classes with disjoint spectra.**
+
 Per-class AP@50, PR curves and confusion matrices: see [`results/ablation_table.md`](results/ablation_table.md) and the figures in `results/`.
 
 | | |
