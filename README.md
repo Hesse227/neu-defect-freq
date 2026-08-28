@@ -101,8 +101,7 @@ neu-defect-freq/
 ├── scripts/
 │   ├── visualize.py            # GT|baseline|ours triplets, gain cases, error analysis
 │   └── make_report.py          # aggregate tables + copy PR curves / confusion matrices
-├── results/                    # tables, PR curves, confusion matrices, detections, error analysis
-└── RESUME.md                   # 中文简历条目 / 套磁一句话 / 面试8问答
+└── results/                    # tables, PR curves, confusion matrices, detections, error analysis
 ```
 
 ## 5. Reproduce
